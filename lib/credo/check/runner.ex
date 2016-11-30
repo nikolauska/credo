@@ -8,6 +8,7 @@ defmodule Credo.Check.Runner do
       config
       |> set_lint_attributes(source_files)
       |> exclude_low_priority_checks(config.min_priority - 9)
+      |> exclude_checks_based_on_elixir_version
 
     {_time_run_on_all, source_files_after_run_on_all} =
       :timer.tc fn ->
@@ -63,6 +64,17 @@ defmodule Credo.Check.Runner do
       |> Enum.reject(fn
           ({check}) -> check.base_priority < below_priority
           ({check, _}) -> check.base_priority < below_priority
+        end)
+
+    %Config{config | checks: checks}
+  end
+
+  defp exclude_checks_based_on_elixir_version(config) do
+    checks =
+      config.checks
+      |> Enum.filter(fn
+          ({check}) -> System.version |> Version.match?(check.elixir_version)
+          ({check, _}) -> System.version |> Version.match?(check.elixir_version)
         end)
 
     %Config{config | checks: checks}
