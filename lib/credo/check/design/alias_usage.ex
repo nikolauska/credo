@@ -47,24 +47,31 @@ defmodule Credo.Check.Design.AliasUsage do
                               Kernel Keyword List Macro Map MapSet Module Node
                               OptionParser Path Port Process Protocol Range
                               Record Regex Set Stream String StringIO Supervisor
-                              System Task Tuple URI Version]
+                              System Task Tuple URI Version],
+      if_nested_deeper_than: 0,
     ]
 
   use Credo.Check, base_priority: :normal
+
+  alias Credo.Code.Name
 
   @doc false
   def run(%SourceFile{ast: ast} = source_file, params \\ []) do
     issue_meta = IssueMeta.for(source_file, params)
     excluded_namespaces = Params.get(params, :excluded_namespaces, @default_params)
     excluded_lastnames = Params.get(params, :excluded_lastnames, @default_params)
+    if_nested_deeper_than = Params.get(params, :if_nested_deeper_than, @default_params)
 
-    Credo.Code.prewalk(ast, &traverse(&1, &2, issue_meta, excluded_namespaces, excluded_lastnames))
+    ast
+    |> Credo.Code.prewalk(&traverse(&1, &2, issue_meta, excluded_namespaces, excluded_lastnames))
+    |> filter_issues(if_nested_deeper_than)
   end
 
   defp traverse({:defmodule, _, _} = ast, issues, issue_meta, excluded_namespaces, excluded_lastnames) do
     aliases = Credo.Code.Module.aliases(ast)
     mod_deps = Credo.Code.Module.modules(ast)
     new_issues = Credo.Code.prewalk(ast, &find_issues(&1, &2, issue_meta, excluded_namespaces, excluded_lastnames, aliases, mod_deps))
+
     {ast, issues ++ new_issues}
   end
   defp traverse(ast, issues, _source_file, _excluded_namespaces, _excluded_lastnames) do
@@ -91,6 +98,7 @@ defmodule Credo.Check.Design.AliasUsage do
         {ast, issues}
       true ->
         trigger = Enum.join(mod_list, ".")
+
         {ast, issues ++ [issue_for(issue_meta, meta[:line], trigger)]}
     end
   end
@@ -132,8 +140,14 @@ defmodule Credo.Check.Design.AliasUsage do
     |> Enum.any?(&(&1 == last_name))
   end
 
-  def tuple?(t) when is_tuple(t), do: true
-  def tuple?(_), do: false
+  defp tuple?(t) when is_tuple(t), do: true
+  defp tuple?(_), do: false
+
+  defp filter_issues(issues, if_nested_deeper_than) do
+    Enum.filter(issues, fn(issue) ->
+      Name.parts_count(issue.trigger) > if_nested_deeper_than
+    end)
+  end
 
   defp issue_for(issue_meta, line_no, trigger) do
     format_issue issue_meta,
