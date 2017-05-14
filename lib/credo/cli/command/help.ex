@@ -40,7 +40,7 @@ defmodule Credo.CLI.Command.Help do
         name2 =
           name
           |> to_string
-          |> String.ljust(@ljust)
+          |> String.pad_trailing(@ljust)
 
         case List.keyfind(module.__info__(:attributes), :shortdoc, 0) do
           {:shortdoc, [shortdesc]} ->
@@ -80,7 +80,7 @@ output = """
 #      \\/___/  \\/_/ \\/____/\\/__,_ /\\/___/
 #
 """
-    String.strip(output)
+    String.trim(output)
   end
 
 end
